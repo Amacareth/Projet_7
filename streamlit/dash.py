@@ -13,7 +13,8 @@ st.set_page_config(page_title='Prêt à dépenser', page_icon='💻',layout="wid
 application_train_clean_full = pd.read_csv('dataframe_st.csv')
 del application_train_clean_full['Unnamed: 0']
 application_train_clean_full_nerf = application_train_clean_full.sample(n = 20, random_state = 42)
-xgb_with_h = pickle.load(open('finalized_model.sav', 'rb'))    
+xgb_with_h = pickle.load(open('finalized_model.sav', 'rb'))  
+
 
 label = ['20-30', '30-40', '40-50', '50-60', '60-70']
 
@@ -33,6 +34,7 @@ application_train_clean_full_shap_client = application_train_clean_full_shap_cli
 del application_train_clean_full_shap_client['TARGET']
 del application_train_clean_full_shap_client['AGE']
 del application_train_clean_full_shap_client['LABEL_AGE']
+
 
 
 
@@ -291,10 +293,17 @@ if selectbox == "Crédit":
     
     st.title("Crédit client")
     
-    client = st.selectbox("Le client à afficher :", application_train_clean_full_nerf['SK_ID_CURR'])
-    ligne_client = application_train_clean_full_nerf.loc[application_train_clean_full_nerf['SK_ID_CURR']==client]
+    client = st.selectbox("Le client à afficher :", application_train_clean_full_shap_client['SK_ID_CURR'])
+    ligne_client = application_train_clean_full_shap_client.loc[application_train_clean_full_shap_client['SK_ID_CURR']==client]
     st.subheader("Données client")
     st.dataframe(ligne_client)
+    
+    def shap_plot(j):
+        explainerModel = shap.TreeExplainer(xgb_with_h)
+        shap_values_Model = explainerModel.shap_values(application_train_clean_full_shap_client.drop(['SK_ID_CURR','number'], axis = 1))
+        p = shap.force_plot(explainerModel.expected_value, shap_values_Model[j], application_train_clean_full_shap_client.drop(['SK_ID_CURR','number'], axis = 1).iloc[[j]], link = "logit")
+        return(p)
+    
     
     #appel à l'API
     
@@ -311,14 +320,10 @@ if selectbox == "Crédit":
         ligne_client_shap = application_train_clean_full_shap_client.loc[application_train_clean_full_shap_client['SK_ID_CURR']==client]
         num = ligne_client_shap['number']
         num = num.iloc[0]
-        explainer = shap.Explainer(xgb_with_h, application_train_clean_full_shap_client)
-        shap_values = explainer(application_train_clean_full_shap_client)
         
         if(st.button("Cliquez pour connaître les raisons de l'acceptation")):
-            st_shap(shap.force_plot(explainer.expected_value, shap_values.values[num,:], application_train_clean_full_shap_client.iloc[num,:]))
-            fig12 = plt.figure(figsize = (10,2))
-            shap.plots.waterfall(shap_values[num])
-            st.pyplot(fig12)
+            st_shap(shap_plot(num))
+           
         
     else:
         new_title = '<p style="font-family:sans-serif; color:Red; font-size: 42px;">Prêt refusé</p>'
@@ -328,17 +333,10 @@ if selectbox == "Crédit":
         ligne_client_shap = application_train_clean_full_shap_client.loc[application_train_clean_full_shap_client['SK_ID_CURR']==client]
         num = ligne_client_shap['number']
         num = num.iloc[0]
-        explainer = shap.Explainer(xgb_with_h, application_train_clean_full_shap_client)
-        shap_values = explainer(application_train_clean_full_shap_client)
-        
-        #Shap
     
         if(st.button("Cliquez pour connaître les raisons du refus")):
-            st_shap(shap.force_plot(explainer.expected_value, shap_values.values[num,:], application_train_clean_full_shap_client.iloc[num,:]))
-            fig12 = plt.figure(figsize = (10,2))
-            shap.plots.waterfall(shap_values[num])
-            st.pyplot(fig12)
-   
+            st_shap(shap_plot(num))
+           
     
    
     
@@ -385,7 +383,7 @@ if selectbox == "Simulation":
         st.markdown(new_title, unsafe_allow_html=True)
         st.write('Le taux d\'acceptation est de :', round(res[0]*100,3), '%') 
     else:
-        new_title = '<p style="font-family:sans serif; color:Red; font-size: 32px;">Prêt potentiellement refusé</p>'
+        new_title = '<p style="font-family:sans-serif; color:Red; font-size: 32px;">Prêt potentiellement refusé</p>'
         st.markdown(new_title, unsafe_allow_html=True)
         st.write('Le taux de refus est de :', round(res[1]*100,3), '%')
     
